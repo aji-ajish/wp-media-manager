@@ -245,6 +245,7 @@ class Rewrite_Handler
 	 * @param \WP $wp (unused, required by hook signature).
 	 * @return void
 	 */
+	private static ?array $redirect_cache = null;
 	public function intercept_request(\WP $wp): void
 	{
 		// Only intercept GET / HEAD.
@@ -288,19 +289,22 @@ class Rewrite_Handler
 
 		// 2. Multi-Domain Redirection Lookup
 		global $wpdb;
-		$table_name = $wpdb->prefix . 'wpmm_redirect_rules';
+		$table_name = $wpdb->prefix . WPMM_REDIRECT_TABLE_NAME;
 
 		// Checks whether it exists in the database as a full domain URL or just as a path.
-		$redirect_rule = $wpdb->get_row(
-			$wpdb->prepare(
-				"SELECT * FROM {$table_name} 
-                 WHERE (source_path = %s OR source_path = %s OR source_path = %s) 
-                 AND is_active = 1 LIMIT 1",
-				$path,             // e.g. 'ild-rul'
-				$clean_full_url,   // e.g. 'https://olddomain.com/ild-rul'
-				rtrim($clean_full_url, '/') // e.g. 'https://olddomain.com/ild-rul' 
-			)
-		);
+		if (null === self::$redirect_cache) {
+			$table_name = $wpdb->prefix . WPMM_REDIRECT_TABLE_NAME;
+			$rules = $wpdb->get_results("SELECT * FROM {$table_name} WHERE is_active = 1");
+			self::$redirect_cache = $rules ? $rules : [];
+		}
+
+		$redirect_rule = null;
+		foreach (self::$redirect_cache as $rule) {
+			if ($rule->source_path === $path || $rule->source_path === $clean_full_url || $rule->source_path === rtrim($clean_full_url, '/')) {
+				$redirect_rule = $rule;
+				break;
+			}
+		}
 
 		if ($redirect_rule) {
 			// Increases the hit count.
@@ -424,7 +428,7 @@ class Rewrite_Handler
 		header('Accept-Ranges: bytes');
 
 		// 🆕 Aggressive Browser Cache Layers to eliminate 2-second streaming roundtrips
-		header('Cache-Control: public, max-age=31536000, stale-while-revalidate=604800, immutable');
+		header('Cache-Control: public, max-age=31536000, stale-while-revalidate=604800');
 		header('Pragma: cache');
 		header('Expires: ' . gmdate('D, d M Y H:i:s', time() + 31536000) . ' GMT');
 		header('X-Content-Type-Options: nosniff');
@@ -470,6 +474,7 @@ class Rewrite_Handler
 		$length = $end - $start + 1;
 
 		status_header(206);
+		header('Cache-Control: public, max-age=31536000, stale-while-revalidate=604800');
 		header('Content-Type: ' . $mime);
 		header("Content-Range: bytes {$start}-{$end}/{$file_size}");
 		header('Content-Length: ' . $length);
@@ -601,8 +606,9 @@ class Rewrite_Handler
 		}
 
 		// Bypasses the wp-content restriction if they are old theme PDF files.
-		if (str_starts_with($path, 'wp-content/themes/apellis/pdf/')) {
-			return $path; // Grants permission and returns the path.
+		$current_theme = get_stylesheet(); 
+		if (str_starts_with($path, 'wp-content/themes/' . $current_theme . '/pdf/')) {
+			return $path;
 		}
 
 		// Continues to block other common WordPress core paths as before.

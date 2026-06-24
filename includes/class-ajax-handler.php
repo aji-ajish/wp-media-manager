@@ -61,6 +61,18 @@ class Ajax_Handler
 			wp_send_json_error(['message' => __('A media URL is required.', 'wp-media-manager')]);
 		}
 
+		
+		$existing_mapping = $this->db->find_by_original_url($data['original_url']);
+		if ($existing_mapping) {
+			$existing_file_ext = strtolower(pathinfo(wp_basename($existing_mapping->original_url), PATHINFO_EXTENSION));
+			$existing_effective = $existing_mapping->include_extension ? $existing_mapping->custom_name . '.' . $existing_file_ext : $existing_mapping->custom_name;
+			$full_path = trim($existing_mapping->custom_path . '/' . $existing_effective, '/');
+			
+			wp_send_json_error([
+				'message' => sprintf(__('This media file is already linked to the custom path "%s". The same media file cannot be added again as a new entry.', 'wp-media-manager'), $full_path)
+			]);
+		}
+
 		// Extension-aware duplicate check.
 		// On collision we return SUCCESS (not error) with is_duplicate=true so
 		// the JS can open the replace confirmation modal. Returning an error
@@ -105,6 +117,17 @@ class Ajax_Handler
 		}
 
 		$data = $this->extract_entry_data();
+
+		$existing_mapping = $this->db->find_by_original_url($data['original_url']);
+		if ($existing_mapping && (int) $existing_mapping->id !== $id) {
+			$existing_file_ext = strtolower(pathinfo(wp_basename($existing_mapping->original_url), PATHINFO_EXTENSION));
+			$existing_effective = $existing_mapping->include_extension ? $existing_mapping->custom_name . '.' . $existing_file_ext : $existing_mapping->custom_name;
+			$full_path = trim($existing_mapping->custom_path . '/' . $existing_effective, '/');
+			
+			wp_send_json_error([
+				'message' => sprintf(__('This media file has already been used in another custom path, "%s"', 'wp-media-manager'), $full_path)
+			]);
+		}
 
 		// Duplicate check excluding self so re-saving same entry doesn't flag.
 		$dup = $this->check_extension_aware_duplicate(
@@ -299,7 +322,7 @@ class Ajax_Handler
 		Helper::check_capability();
 
 		global $wpdb;
-		$table = $wpdb->prefix . 'wpmm_redirect_rules';
+		$table = $wpdb->prefix . WPMM_REDIRECT_TABLE_NAME;
 
 		$id            = absint($this->post_string('id'));
 		$raw_source  = trim($this->post_string('source_path'));
@@ -342,7 +365,7 @@ class Ajax_Handler
 		Helper::check_capability();
 
 		global $wpdb;
-		$table = $wpdb->prefix . 'wpmm_redirect_rules';
+		$table = $wpdb->prefix . WPMM_REDIRECT_TABLE_NAME;
 
 		$rules = $wpdb->get_results("SELECT * FROM {$table} ORDER BY id DESC");
 
@@ -358,7 +381,7 @@ class Ajax_Handler
 		Helper::check_capability();
 
 		global $wpdb;
-		$table = $wpdb->prefix . 'wpmm_redirect_rules';
+		$table = $wpdb->prefix . WPMM_REDIRECT_TABLE_NAME;
 
 		$id = absint($this->post_string('id'));
 		$wpdb->delete($table, ['id' => $id], ['%d']);
@@ -380,7 +403,7 @@ class Ajax_Handler
 			wp_send_json_error(['message' => __('Permission denied.', 'wp-media-manager')]);
 		}
 
-		$current_id     = (int) ($_POST['current_attachment_id'] ?? 0);
+		$current_id     = $current_id = absint($this->post_string('current_attachment_id'));
 		$replace_method = sanitize_text_field($_POST['replace_method'] ?? 'just_replace'); // just_replace OR replace_and_rename
 		$date_method    = sanitize_text_field($_POST['date_method'] ?? 'keep_date');       // keep_date OR current_date
 		$uploaded_file  = $_FILES['replacement_file'] ?? null;
@@ -491,12 +514,8 @@ class Ajax_Handler
 			}
 
 			clean_post_cache($current_id);
-			wp_cache_delete($current_id, 'posts');
-			if (function_exists('wp_cache_flush')) {
-				wp_cache_flush();
-			}
 
-			delete_transient('wpmm_url_lookup_map'); 
+        	delete_transient('wpmm_url_lookup_map');
 
 			wp_send_json_success([
 				'message'   => 'File replaced successfully with selected options.',

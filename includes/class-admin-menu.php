@@ -33,12 +33,12 @@ class Admin_Menu
 	{
 		// Media Manager
 		$this->hook_suffix = add_menu_page(
-			__('Media Manager', 'wp-media-manager'),
-			__('Media Manager', 'wp-media-manager'),
+			__('Media Route & Replace', 'wp-media-manager'),
+			__('Media Route & Replace', 'wp-media-manager'),
 			'manage_options',
-			'wp-media-manager',
+			'wp-media-manager', 
 			[$this, 'render_page'],
-			'dashicons-portfolio',
+			'dashicons-randomize', 
 			25
 		);
 
@@ -82,6 +82,7 @@ class Admin_Menu
 			'ajaxUrl' => admin_url('admin-ajax.php'),
 			'nonce'   => wp_create_nonce('wpmm_nonce'),
 			'siteUrl' => home_url('/'),
+			'cacheBuster'  => '',
 			'i18n'    => [
 				'confirmDelete'     => __('Are you sure you want to delete this entry? This cannot be undone.', 'wp-media-manager'),
 				'saving'            => __('Saving…', 'wp-media-manager'),

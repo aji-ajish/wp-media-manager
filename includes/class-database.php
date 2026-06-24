@@ -57,7 +57,7 @@ class Database
 
 		$charset_collate = $wpdb->get_charset_collate();
 		$media_table     = $wpdb->prefix . WPMM_TABLE_NAME;
-		$redirect_table  = $wpdb->prefix . 'wpmm_redirect_rules'; 
+		$redirect_table  = $wpdb->prefix . WPMM_REDIRECT_TABLE_NAME;
 		/*
 		 * dbDelta formatting rules — DO NOT auto-format this block:
 		 *  - Two spaces before every column / key line.
@@ -140,7 +140,7 @@ class Database
 		$table = $wpdb->prefix . WPMM_TABLE_NAME;
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$wpdb->query("DROP TABLE IF EXISTS {$table}");
-		$wpdb->query("DROP TABLE IF EXISTS " . $wpdb->prefix . 'wpmm_redirect_rules');
+		$wpdb->query("DROP TABLE IF EXISTS " . $wpdb->prefix . WPMM_REDIRECT_TABLE_NAME);
 	}
 
 	/**
@@ -629,6 +629,18 @@ class Database
 			$where  .= ' AND (custom_name LIKE %s OR custom_path LIKE %s OR file_type LIKE %s)';
 			$values  = [$like, $like, $like];
 		}
+
+		if ((int) $args['per_page'] === -1) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			return $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT * FROM {$this->table} WHERE {$where} ORDER BY {$orderby} {$order}",
+					$values
+				)
+			) ?: [];
+		}
+
+		$offset  = ((int) $args['page'] - 1) * (int) $args['per_page'];
 
 		$values[] = (int) $args['per_page'];
 		$values[] = $offset;

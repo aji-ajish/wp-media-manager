@@ -103,6 +103,12 @@ class Url_Replacer
 	/**
 	 * Process the complete HTML output and replace all upload URLs.
 	 *
+	 * OPTIMIZED: Instead of running strtr() over the entire HTML with a massive 
+	 * 50,000-item map (which causes Memory Exhaustion), we extract only the 
+	 * actual upload URLs present in this specific HTML using Regex. 
+	 * Since Layer 1 filters already replaced 95% of URLs, Layer 2 will only 
+	 * find a handful of hardcoded URLs (e.g., 5-10 WebP URLs from theme's <picture> tag).
+	 *
 	 * @param string $html
 	 * @return string
 	 */
@@ -118,16 +124,43 @@ class Url_Replacer
 			return $html;
 		}
 
-		$html = strtr($html, $map);
+		// 1. Find ONLY the upload URLs that actually exist in this HTML.
+		$upload_base = $this->get_upload_base_url();
+		$escaped_base = preg_quote($upload_base, '/');
 
-		$upload_base_url = $this->get_upload_base_url(); 
-		$upload_path_regex = preg_quote(strtok($upload_base_url, '?'), '/');
+		// Matches https://site.com/wp-content/uploads/... 
+		preg_match_all('/(?:https?:)?\/\/[^ "\'>]*?' . $escaped_base . '[^ "\'>]+/i', $html, $matches);
 
+		$found_urls = array_unique($matches[0]);
+
+		if (empty($found_urls)) {
+			return $html;
+		}
+
+		// 2. Build a MICRO map containing ONLY the URLs found in this HTML.
+		$replacements = [];
+		foreach ($found_urls as $raw_url) {
+			$clean = rawurldecode(strtok($raw_url, '?'));
+
+			// Check our master map
+			if (isset($map[$clean])) {
+				$replacements[$raw_url] = $map[$clean];
+			} elseif (isset($map[$raw_url])) {
+				$replacements[$raw_url] = $map[$raw_url];
+			}
+		}
+
+		// 3. Replace using the tiny micro map (blazing fast, zero memory issues).
+		if (!empty($replacements)) {
+			$html = strtr($html, $replacements);
+		}
+
+		// 4. Handle data-attributes (srcsets inside custom data fields)
 		$html = preg_replace_callback(
 			'/(data-[a-zA-Z0-9\-]+=["\'])([^"\']+)(["\'])/',
 			function ($matches) use ($map) {
-				$attribute_prefix = $matches[1]; 
-				$attribute_value  = $matches[2];  
+				$attribute_prefix = $matches[1];
+				$attribute_value  = $matches[2];
 
 				$clean_url = rawurldecode(strtok($attribute_value, '?'));
 				if (isset($map[$clean_url])) {
@@ -424,7 +457,7 @@ class Url_Replacer
 
 		self::$map = [];
 
-		$entries = $this->db->get_all(['per_page' => 2000, 'page' => 1]);
+		$entries = $this->db->get_all(['per_page' => -1, 'page' => 1]);
 
 		if (empty($entries)) {
 			return self::$map;
@@ -608,6 +641,12 @@ class Url_Replacer
 		if (is_admin()) {
 			return true;
 		}
+		if (defined('REST_REQUEST') && REST_REQUEST) {
+			return true;
+		}
+		if (defined('DOING_CRON') && DOING_CRON) {
+			return true;
+		}
 
 		if (isset($_REQUEST['action'])) {
 			$action = sanitize_text_field(wp_unslash($_REQUEST['action']));
@@ -617,6 +656,4 @@ class Url_Replacer
 		}
 		return false;
 	}
-
-	
 }

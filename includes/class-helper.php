@@ -122,11 +122,8 @@ class Helper {
 	 *   - Preserve capitalization.
 	 *
 	 * Examples:
-	 *   "ECP SYFOVRE Preparation For Administration Digital Resource"
-	 *   → "ECP-SYFOVRE-Preparation-For-Administration-Digital-Resource"
 	 *
 	 *   "Q&A Guide (2025)"
-	 *   → "QA-Guide-2025"
 	 *
 	 * The resulting name is safe for rawurlencode() and displays cleanly
 	 * in browser address bars.

@@ -1,13 +1,12 @@
 <?php
 
 /**
- * Plugin Name:       WP Media Manager
- * Plugin URI:        https://example.com/wp-media-manager
- * Description:       Manage custom media entries with custom URL paths, automatic URL replacement, WebP/PDF support, and favicon routing.
- * Version:           1.3.0
+ * Plugin Name:       Media Route & Replace
+ * Description:       Create clean custom media paths, seamlessly replace files without breaking links, and manage powerful 301/302/404 redirect rules.
+ * Version:           1.0.0
  * Requires at least: 6.0
  * Requires PHP:      8.0
- * Author:            Your Name
+ * Author:            Ajish S
  * License:           GPL v2 or later
  * Text Domain:       wp-media-manager
  * Domain Path:       /languages
@@ -19,12 +18,13 @@ if (! defined('ABSPATH')) {
 	exit;
 }
 
-define('WPMM_VERSION',         '1.3.0');
+define('WPMM_VERSION',         '1.0.0');
 define('WPMM_PLUGIN_FILE',     __FILE__);
 define('WPMM_PLUGIN_DIR',      plugin_dir_path(__FILE__));
 define('WPMM_PLUGIN_URL',      plugin_dir_url(__FILE__));
 define('WPMM_PLUGIN_BASENAME', plugin_basename(__FILE__));
 define('WPMM_TABLE_NAME',      'wpmm_media_entries');
+define('WPMM_REDIRECT_TABLE_NAME',  'wpmm_redirect_rules');
 define('WPMM_QUERY_VAR',       'wpmm_file_request');
 
 /*
